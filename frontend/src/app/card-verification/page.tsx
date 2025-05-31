@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { ArrowRight, ArrowLeft, CreditCard, Check, Loader2 } from "lucide-react"
+import { ArrowRight, ArrowLeft, CreditCard, Check, Loader2, AlertCircle } from "lucide-react"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { useAccount } from "wagmi"
 
@@ -19,26 +19,112 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function CardVerification() {
   const { address, isConnected } = useAccount()
   const [isLoading, setIsLoading] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
+  const [processingPayment, setProcessingPayment] = useState(false)
+  const [paymentComplete, setPaymentComplete] = useState(false)
   const [cardDetails, setCardDetails] = useState({
     cardId: "",
     cardLevel: "",
     walletAddress: "",
   })
+  const [paymentDetails, setPaymentDetails] = useState({
+    cardNumber: "",
+    cardholderName: "",
+    expiryDate: "",
+    cvv: "",
+  })
+  const [errors, setErrors] = useState({
+    cardNumber: "",
+    cardholderName: "",
+    expiryDate: "",
+    cvv: "",
+  })
 
-  // Mock verification function - in production this would call the API
+  // Handle input changes for payment form
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    setPaymentDetails({
+      ...paymentDetails,
+      [name]: value,
+    });
+    
+    // Clear error when user types
+    if (errors[name]) {
+      setErrors({
+        ...errors,
+        [name]: "",
+      });
+    }
+  };
+  
+  // Handle credit card payment
+  const handleProcessPayment = async () => {
+    // Basic validation
+    const newErrors = {};
+    let hasError = false;
+    
+    if (!paymentDetails.cardNumber.trim()) {
+      newErrors.cardNumber = "Card number is required";
+      hasError = true;
+    } else if (!/^\d{16}$/.test(paymentDetails.cardNumber.replace(/\s/g, ''))) {
+      newErrors.cardNumber = "Invalid card number";
+      hasError = true;
+    }
+    
+    if (!paymentDetails.cardholderName.trim()) {
+      newErrors.cardholderName = "Cardholder name is required";
+      hasError = true;
+    }
+    
+    if (!paymentDetails.expiryDate.trim()) {
+      newErrors.expiryDate = "Expiry date is required";
+      hasError = true;
+    } else if (!/^\d{2}\/\d{2}$/.test(paymentDetails.expiryDate)) {
+      newErrors.expiryDate = "Use MM/YY format";
+      hasError = true;
+    }
+    
+    if (!paymentDetails.cvv.trim()) {
+      newErrors.cvv = "CVV is required";
+      hasError = true;
+    } else if (!/^\d{3,4}$/.test(paymentDetails.cvv)) {
+      newErrors.cvv = "Invalid CVV";
+      hasError = true;
+    }
+    
+    if (hasError) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    // Process payment
+    setProcessingPayment(true);
+    
+    // Simulate payment processing
+    setTimeout(() => {
+      setProcessingPayment(false);
+      setPaymentComplete(true);
+      
+      // Now that payment is done, we can verify the card
+      handleVerifyCard();
+    }, 2000);
+  };
+
+  // Verify card and link it to wallet
   const handleVerifyCard = async () => {
-    if (!isConnected) return
+    if (!isConnected || !paymentComplete) return
     
     setIsLoading(true)
     
     // Simulate API call with a timeout
     setTimeout(() => {
-      // Mock successful verification
+      // Mock successful verification - this would actually link the card to the wallet on the backend
       setCardDetails({
         cardId: "MM-" + Math.random().toString(36).substring(2, 10).toUpperCase(),
         cardLevel: Math.random() > 0.5 ? "Premium" : "Basic",
@@ -46,7 +132,7 @@ export default function CardVerification() {
       })
       setIsVerified(true)
       setIsLoading(false)
-    }, 2000)
+    }, 1500)
   }
 
   return (
@@ -81,7 +167,7 @@ export default function CardVerification() {
                   </div>
                   <div>
                     <CardTitle className="text-xl">MetaMask Card Verification</CardTitle>
-                    <CardDescription>Link your MetaMask card to create your MetaID</CardDescription>
+                    <CardDescription>Link your card to your wallet to create your MetaID</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -99,10 +185,17 @@ export default function CardVerification() {
                 </div>
                 
                 <div className="rounded-lg bg-white/5 p-4 backdrop-blur-sm border border-white/10">
-                  <h3 className="font-medium mb-2">Step 2: Verify Card Details</h3>
+                  <h3 className="font-medium mb-2">Step 2: Enter Card Details</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Verify your MetaMask card is linked to this wallet address.
+                    A test payment of 1 USDC will be made to verify your card.
                   </p>
+                  
+                  <Alert className="mb-4 bg-blue-500/10 border border-blue-500/30">
+                    <AlertCircle className="h-4 w-4 text-blue-500" />
+                    <AlertDescription className="text-xs ml-2">
+                      This is a secure verification process. The 1 USDC charge will be refunded immediately.
+                    </AlertDescription>
+                  </Alert>
                   
                   <div className="space-y-4">
                     <div className="grid gap-2">
@@ -115,26 +208,101 @@ export default function CardVerification() {
                       />
                     </div>
                     
+                    <div className="grid gap-2">
+                      <Label htmlFor="cardNumber">Card Number</Label>
+                      <Input 
+                        id="cardNumber"
+                        name="cardNumber"
+                        placeholder="1234 5678 9012 3456"
+                        value={paymentDetails.cardNumber}
+                        onChange={handleInputChange}
+                        disabled={paymentComplete}
+                        className={`bg-white/5 border-white/20 ${errors.cardNumber ? "border-red-400" : ""}`}
+                      />
+                      {errors.cardNumber && <p className="text-xs text-red-400 mt-1">{errors.cardNumber}</p>}
+                    </div>
+                    
+                    <div className="grid gap-2">
+                      <Label htmlFor="cardholderName">Cardholder Name</Label>
+                      <Input 
+                        id="cardholderName"
+                        name="cardholderName"
+                        placeholder="John Doe"
+                        value={paymentDetails.cardholderName}
+                        onChange={handleInputChange}
+                        disabled={paymentComplete}
+                        className={`bg-white/5 border-white/20 ${errors.cardholderName ? "border-red-400" : ""}`}
+                      />
+                      {errors.cardholderName && <p className="text-xs text-red-400 mt-1">{errors.cardholderName}</p>}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="expiryDate">Expiry Date</Label>
+                        <Input 
+                          id="expiryDate"
+                          name="expiryDate"
+                          placeholder="MM/YY"
+                          value={paymentDetails.expiryDate}
+                          onChange={handleInputChange}
+                          disabled={paymentComplete}
+                          className={`bg-white/5 border-white/20 ${errors.expiryDate ? "border-red-400" : ""}`}
+                        />
+                        {errors.expiryDate && <p className="text-xs text-red-400 mt-1">{errors.expiryDate}</p>}
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="cvv">CVV</Label>
+                        <Input 
+                          id="cvv"
+                          name="cvv"
+                          placeholder="123"
+                          value={paymentDetails.cvv}
+                          onChange={handleInputChange}
+                          disabled={paymentComplete}
+                          className={`bg-white/5 border-white/20 ${errors.cvv ? "border-red-400" : ""}`}
+                        />
+                        {errors.cvv && <p className="text-xs text-red-400 mt-1">{errors.cvv}</p>}
+                      </div>
+                    </div>
+                    
                     <div className="flex items-center gap-3">
-                      <Button 
-                        onClick={handleVerifyCard} 
-                        disabled={!isConnected || isLoading || isVerified}
-                        className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90 shadow-lg"
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Verifying
-                          </>
-                        ) : isVerified ? (
-                          <>
-                            <Check className="mr-2 h-4 w-4" />
-                            Verified
-                          </>
-                        ) : (
-                          "Verify Card"
-                        )}
-                      </Button>
+                      {paymentComplete ? (
+                        <Button 
+                          onClick={handleVerifyCard} 
+                          disabled={!isConnected || isLoading || isVerified}
+                          className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90 shadow-lg"
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Linking Card to Wallet
+                            </>
+                          ) : isVerified ? (
+                            <>
+                              <Check className="mr-2 h-4 w-4" />
+                              Card Linked
+                            </>
+                          ) : (
+                            "Link Card to Wallet"
+                          )}
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={handleProcessPayment} 
+                          disabled={!isConnected || processingPayment}
+                          className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90 shadow-lg"
+                        >
+                          {processingPayment ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Processing Payment
+                            </>
+                          ) : (
+                            "Make 1 USDC Payment"
+                          )}
+                        </Button>
+                      )}
                       
                       {!isConnected && (
                         <p className="text-xs text-amber-400">Please connect your wallet first</p>
@@ -151,7 +319,7 @@ export default function CardVerification() {
                     transition={{ duration: 0.3 }}
                   >
                     <h3 className="font-medium mb-2 flex items-center gap-2 text-cyan-400">
-                      <Check className="h-5 w-5" /> Card Successfully Verified
+                      <Check className="h-5 w-5" /> Card Successfully Linked to Wallet
                     </h3>
                     
                     <div className="space-y-3 mt-4">

@@ -14,23 +14,22 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
 import {
   mainnet,
-  polygon,
-  optimism,
-  arbitrum,
+  linea,
+  lineaSepolia
 } from 'wagmi/chains';
 
 // WalletConnect v2 Project ID - Replace with your own in a production app
 const projectId = '9811958bd307518b364ff7178034c435';
 
 // Configure supported chains for MetaID
-const metaIdChains = [mainnet, polygon, optimism, arbitrum] as const;
+const metaIdChains = [lineaSepolia, mainnet, linea] as const;
 
 // Configure RainbowKit and wagmi
 const config = getDefaultConfig({
   appName: 'MetaID',
   projectId: projectId,
   chains: metaIdChains,
-  ssr: true, 
+  ssr: true,
 });
 
 // Get default wallets with MetaID app name
@@ -52,12 +51,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Handle hydration issues by only rendering when component is mounted client-side
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
-  
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         {mounted ? (
-          <RainbowKitProvider 
+          <RainbowKitProvider
             appInfo={metaIdAppInfo}
             theme={darkTheme({
               accentColor: '#3b82f6', // blue-500 to match our design

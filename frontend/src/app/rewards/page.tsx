@@ -107,7 +107,7 @@ export default function RewardsDashboard() {
   const inactiveRewards = rewardPartners.filter(partner => partner.status === "inactive")
   
   // Helper function to get color class
-  const getColorClass = (color) => {
+  const getColorClass = (color : string) => {
     const colorMap = {
       emerald: "from-emerald-500 to-green-600",
       blue: "from-blue-500 to-indigo-600",
@@ -115,7 +115,7 @@ export default function RewardsDashboard() {
       amber: "from-amber-500 to-orange-600",
       cyan: "from-cyan-500 to-sky-600"
     }
-    return colorMap[color] || "from-gray-500 to-slate-600"
+    return colorMap[color as keyof typeof colorMap] || "from-gray-500 to-slate-600"
   }
 
   return (

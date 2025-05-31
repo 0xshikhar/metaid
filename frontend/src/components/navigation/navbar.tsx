@@ -23,28 +23,28 @@ import { Input } from "@/components/ui/input";
 
 const navLinks = [
 	{
-		name: "Dashboard",
-		href: "/dashboard",
-		icon: <LayoutDashboard className="mr-2 h-4 w-4" />,
-	},
-	{
-		name: "Teleport",
-		href: "/teleport",
+		name: "Card Verification",
+		href: "/card-verification",
 		icon: <ArrowLeftRight className="mr-2 h-4 w-4" />,
 	},
 	{
-		name: "Borrow",
-		href: "/borrow",
-		icon: <PiggyBank className="mr-2 h-4 w-4" />,
-	},
-	{
-		name: "Swap",
-		href: "/swap",
+		name: "Rewards",
+		href: "/rewards",
 		icon: <RefreshCw className="mr-2 h-4 w-4" />,
 	},
 	{
-		name: "Admin",
-		href: "/admin",
+		name: "Learn More",
+		href: "/learn-more",
+		icon: <ShieldCheck className="mr-2 h-4 w-4" />,
+	},
+	{
+		name: "Coming Soon",
+		href: "/coming-soon",
+		icon: <ShieldCheck className="mr-2 h-4 w-4" />,
+	},
+	{
+		name: "Terms",
+		href: "/terms",
 		icon: <ShieldCheck className="mr-2 h-4 w-4" />,
 	},
 ];
