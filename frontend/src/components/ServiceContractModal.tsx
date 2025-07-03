@@ -21,6 +21,7 @@ import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { createBundlerClient } from 'viem/account-abstraction';
 import { encodeNonce } from 'permissionless/utils';
 import { toast } from 'sonner';
+import ModalComponent from './ModalComponent'; // Import the Modal component
 
 interface ServiceContractModalProps {
   isOpen: boolean;
@@ -112,50 +113,26 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         const previousPoints = currentPoints;
         if (mcoData.loyaltyPoints >= milestone.points && previousPoints < milestone.points) {
           mcoData.rewards.push({
-            id: `milestone-${milestone.points}`,
-            name: milestone.reward,
+            date: new Date().toISOString(),
+            reward: milestone.reward,
             description: milestone.description,
-            points: milestone.points,
-            earnedAt: new Date().toISOString(),
-            type: 'milestone',
-            active: true
+            service: serviceName,
+            points: mcoData.loyaltyPoints
           });
-          showNotification(`🎊 ${milestone.reward} ${milestone.description}`, 'success');
         }
       });
 
-      // Add transaction history if it doesn't exist
-      if (!mcoData.pastTransactions) {
-        mcoData.pastTransactions = [];
-      }
-
-      // Add this transaction to history
-      mcoData.pastTransactions.unshift({
-        id: `tx-${Date.now()}`,
-        serviceName: serviceName,
-        amount: usdcAmount,
-        currency: 'USDC',
-        pointsEarned: pointsEarned,
-        date: new Date().toISOString(),
-        type: 'purchase'
-      });
-
-      // Keep only last 10 transactions
-      if (mcoData.pastTransactions.length > 10) {
-        mcoData.pastTransactions = mcoData.pastTransactions.slice(0, 10);
-      }
-
-      // Save updated MCO data
+      // Save to localStorage
       localStorage.setItem('mcoData', JSON.stringify(mcoData));
-
-      console.log(`🎉 LOYALTY POINTS AWARDED: ${pointsEarned} points for ${usdcAmount} USDC spent on ${serviceName}`);
+      
+      console.log(`🎉 Awarded ${pointsEarned} loyalty points for ${paymentAmount} ${currency}`);
       console.log(`📊 Total Points: ${mcoData.loyaltyPoints} | Level: ${mcoData.membershipLevel}`);
 
       // Show notification about points earned
       if (oldLevel !== mcoData.membershipLevel) {
-        showNotification(`🎯 ${pointsEarned} points earned! 🎊 Promoted to ${mcoData.membershipLevel}! Total: ${mcoData.loyaltyPoints}`, 'success');
+        toast.success(`🎯 ${pointsEarned} points earned! 🎊 Promoted to ${mcoData.membershipLevel}! Total: ${mcoData.loyaltyPoints}`);
       } else {
-        showNotification(`🎯 ${pointsEarned} loyalty points earned! Total: ${mcoData.loyaltyPoints}`, 'success');
+        toast.success(`🎯 ${pointsEarned} loyalty points earned! Total: ${mcoData.loyaltyPoints}`);
       }
 
       return pointsEarned;
@@ -194,15 +171,15 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         setWalletConnected(true);
         setUserAddress(accounts[0]);
-        showNotification('Wallet connected successfully!', 'success');
+        toast.success('Wallet connected successfully!');
       } catch (error) {
         console.error('Error connecting wallet:', error);
-        showNotification('Failed to connect wallet', 'error');
+        toast.error('Failed to connect wallet');
       } finally {
         setIsLoading(false);
       }
     } else {
-      showNotification('MetaMask not detected. Please install MetaMask.', 'error');
+      toast.error('MetaMask not detected. Please install MetaMask.');
     }
   };
 
@@ -258,14 +235,14 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       if (data.success && data.contract) {
         setContract(data.contract);
         setCurrentStep(2);
-        toast('Service contract received from provider!', 'success');   
+        toast.success('Service contract received from provider!');
       } else {
         throw new Error(data.error || 'Failed to create service contract');
       }
     } catch (error) {
       console.error('Error requesting service contract:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to request service contract';
-      toast(errorMessage, 'error');  
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -334,13 +311,13 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         localStorage.setItem('mcoData', JSON.stringify(mcoData));
 
         console.log('💾 Contract saved to localStorage:', signedContract);
-        showNotification('Service agreement signed and saved successfully!', 'success');
+        toast.success('Service agreement signed and saved successfully!');
       } else {
         throw new Error(data.error || 'Failed to update contract status');
       }
     } catch (error) {
       console.error('Error signing service agreement:', error);
-      showNotification('Failed to sign service agreement', 'error');
+      toast.error('Failed to sign service agreement');
     } finally {
       setIsLoading(false);
     }
@@ -359,9 +336,6 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       // Check environment variables
       const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
       const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL || `https://api.pimlico.io/v2/11155111/rpc?apikey=${process.env.NEXT_PUBLIC_PIMLICO_API_KEY || 'pim_12345678910'}`;
-      // const bundlerUrl = import.meta.env.VITE_BUNDLER_URL || 'https://api.pimlico.io/v2/48532/rpc?apikey=pim_KgWXFW2Up4xpDku2WjCfE5';
-      console.log('RPC URL configured:', rpcUrl);
-      console.log('Bundler URL configured:', bundlerUrl.substring(0, 50) + '...');
 
       // Create MetaMask smart account
       const publicClient = createPublicClient({
@@ -464,12 +438,12 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
       if (isUSDC) {
         // For USDC: 6 decimals, so 1 USDC = 1,000,000 wei of USDC
-        paymentAmountWei = BigInt(parseFloat(contract.paymentAmount) * 1_000_000); // Convert to USDC wei (6 decimals)
-        spendingLimitWei = paymentAmountWei + BigInt(1000); // Add small USDC buffer
+        paymentAmountWei = BigInt(Math.floor(parseFloat(contract.paymentAmount) * 1000000)); // Convert to USDC wei (6 decimals)
+        spendingLimitWei = BigInt(Math.floor(parseFloat(contract.paymentAmount) * 1000000 * 1.1)); // Add 10% buffer
       } else {
         // For ETH: 18 decimals
         paymentAmountWei = parseEther(contract.paymentAmount);
-        spendingLimitWei = paymentAmountWei + parseEther('0.001'); // Add 0.001 ETH buffer
+        spendingLimitWei = parseEther(contract.paymentAmount).add(parseEther('0.001')); // Add 0.001 ETH buffer
       }
 
       // Set expiration to 30 days from now
@@ -477,7 +451,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
       console.log('Adding caveats:', {
         spendingLimit: isUSDC
-          ? (Number(spendingLimitWei) / 1_000_000).toFixed(6) + ' USDC'
+          ? (Number(spendingLimitWei) / 1000000).toFixed(6) + ' USDC'
           : ethers.formatEther(spendingLimitWei) + ' ETH',
         paymentAmount: contract.paymentAmount + (isUSDC ? ' USDC' : ' ETH'),
         buffer: isUSDC ? '0.001000 USDC (buffer)' : '0.001 ETH (for gas)',
@@ -515,7 +489,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       console.log('Delegation security features:', {
         spendingLimit: caveats.length > 0
           ? (isUSDC
-            ? `${(Number(spendingLimitWei) / 1_000_000).toFixed(6)} USDC max`
+            ? `${(Number(spendingLimitWei) / 1000000).toFixed(6)} USDC max`
             : `${ethers.formatEther(spendingLimitWei)} ETH max`)
           : 'None (UNSAFE)',
         timeLimit: caveats.length > 0 ? '30 days' : 'None (UNSAFE)',
@@ -636,7 +610,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       }
 
       setCurrentStep(4);
-      showNotification('Payment delegation created successfully!', 'success');
+      toast.success('Payment delegation created successfully!');
     } catch (error: any) {
       console.error('Error creating payment delegation:', error);
 
@@ -655,7 +629,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         errorMessage += `Error: ${error.message || 'Unknown error'}`;
       }
 
-      showNotification(errorMessage, 'error');
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -663,20 +637,19 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
   const deployServiceProviderSmartAccount = async () => {
     if (!walletConnected || !userAddress) {
-      showNotification('Please connect your wallet first', 'error');
+      toast.error('Please connect your wallet first');
       return;
     }
 
     setIsLoading(true);
-    showNotification('Deploying service provider smart account...', 'info');
+    toast.info('Deploying service provider smart account...');
 
     try {
       console.log('🚀 DEPLOYING SERVICE PROVIDER SMART ACCOUNT');
       console.log('Service Provider EOA: 0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3');
 
-      const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
-      const bundlerUrl = import.meta.env.VITE_BUNDLER_URL || 'https://api.pimlico.io/v2/11155111/rpc?apikey=pim_KgWXFW2Up4xpDku2WjCfE5';
-      // const bundlerUrl = import.meta.env.VITE_BUNDLER_URL || 'https://api.pimlico.io/v2/48532/rpc?apikey=pim_KgWXFW2Up4xpDku2WjCfE5';
+      const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
+      const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL || 'https://api.pimlico.io/v2/11155111/rpc?apikey=pim_KgWXFW2Up4xpDku2WjCfE5';
 
       // Create clients
       const publicClient = createPublicClient({
@@ -733,7 +706,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       // Check if already deployed
       const code = await publicClient.getCode({ address: serviceProviderSmartAccount.address as Address });
       if (code && code !== '0x') {
-        showNotification('Service provider smart account already deployed!', 'success');
+        toast.success('Service provider smart account already deployed!');
         console.log('✅ Service provider smart account already exists at:', serviceProviderSmartAccount.address);
         return;
       }
@@ -764,7 +737,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       });
 
       console.log('✅ UserOperation submitted:', userOperationHash);
-      showNotification('Service provider smart account deployment submitted! Waiting for confirmation...', 'info');
+      toast.info('Service provider smart account deployment submitted! Waiting for confirmation...');
 
       // Wait for confirmation
       const receipt = await bundlerClient.waitForUserOperationReceipt({
@@ -775,11 +748,11 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       console.log('📍 Address:', serviceProviderSmartAccount.address);
       console.log('🔗 Transaction:', receipt.receipt.transactionHash);
 
-      showNotification(`Service provider smart account deployed! Address: ${serviceProviderSmartAccount.address}`, 'success');
+      toast.success(`Service provider smart account deployed! Address: ${serviceProviderSmartAccount.address}`);
 
     } catch (error) {
       console.error('❌ Service provider smart account deployment failed:', error);
-      showNotification(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      toast.error(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -787,19 +760,18 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
   const deploySmartAccount = async () => {
     if (!walletConnected || !userAddress) {
-      showNotification('Please connect your wallet first', 'error');
+      toast.error('Please connect your wallet first');
       return;
     }
 
     setIsLoading(true);
-    showNotification('Deploying your smart account...', 'info');
+    toast.info('Deploying your smart account...');
 
     try {
       console.log('🚀 DEPLOYING SMART ACCOUNT FOR USER:', userAddress);
 
-      const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
-      const bundlerUrl = import.meta.env.VITE_BUNDLER_URL || 'https://api.pimlico.io/v2/11155111/rpc?apikey=pim_KgWXFW2Up4xpDku2WjCfE5';
-      // const bundlerUrl = import.meta.env.VITE_BUNDLER_URL || 'https://api.pimlico.io/v2/48532/rpc?apikey=pim_KgWXFW2Up4xpDku2WjCfE5';
+      const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
+      const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL || 'https://api.pimlico.io/v2/11155111/rpc?apikey=pim_KgWXFW2Up4xpDku2WjCfE5';
 
       console.log('🔧 Environment check:', {
         rpcUrl,
@@ -865,7 +837,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       // Check if already deployed
       const code = await publicClient.getCode({ address: smartAccount.address as Address });
       if (code && code !== '0x') {
-        showNotification('Smart account already deployed!', 'success');
+        toast.success('Smart account already deployed!');
         console.log('✅ Smart account already exists at:', smartAccount.address);
         return;
       }
@@ -896,7 +868,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       });
 
       console.log('✅ UserOperation submitted:', userOperationHash);
-      showNotification('Smart account deployment submitted! Waiting for confirmation...', 'info');
+      toast.info('Smart account deployment submitted! Waiting for confirmation...');
 
       // Wait for confirmation
       const receipt = await bundlerClient.waitForUserOperationReceipt({
@@ -907,11 +879,11 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       console.log('📍 Address:', smartAccount.address);
       console.log('🔗 Transaction:', receipt.receipt.transactionHash);
 
-      showNotification(`Smart account deployed successfully! Address: ${smartAccount.address}`, 'success');
+      toast.success(`Smart account deployed successfully! Address: ${smartAccount.address}`);
 
     } catch (error) {
       console.error('❌ Smart account deployment failed:', error);
-      showNotification(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      toast.error(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -921,7 +893,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
     if (!contract) return;
 
     setPaymentProcessing(true);
-    showNotification('Processing payment in 3 seconds...', 'info');
+    toast.info('Processing payment in 3 seconds...');
 
     // 3-second countdown
     for (let i = 3; i > 0; i--) {
@@ -953,7 +925,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       });
 
       // HYBRID APPROACH: Try server-side first, but with better error handling
-      showNotification('Attempting delegation execution (server-side with client-side fallback)...', 'info');
+      toast.info('Attempting delegation execution (server-side with client-side fallback)...');
 
       console.log('🎯 HYBRID DELEGATION APPROACH');
       console.log('First try server-side execution, then client-side if needed');
@@ -979,7 +951,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
           if (serverResult.success && serverResult.transactionHash) {
             const currency = servicePrice.includes('USDC') ? 'USDC' : 'ETH';
-            showNotification(`Delegation executed! ${contract.paymentAmount} ${currency} transferred from Smart Account`, 'success');
+            toast.success(`Delegation executed! ${contract.paymentAmount} ${currency} transferred from Smart Account`);
             setPaymentTx(serverResult.transactionHash);
             const updatedContract = { ...contract, status: 'completed' as const };
             setContract(updatedContract);
@@ -1020,7 +992,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
       } catch (serverError) {
         console.log('🔄 Falling back to client-side delegation redemption...');
-        showNotification('Server-side failed, trying client-side delegation...', 'info');
+        toast.info('Server-side failed, trying client-side delegation...');
 
         // REAL CLIENT-SIDE DELEGATION REDEMPTION
         console.log('🎯 REAL CLIENT-SIDE DELEGATION REDEMPTION');
@@ -1075,7 +1047,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
             console.log('Transaction receipt:', receipt);
 
             const currency = 'ETH';
-            showNotification(`Payment successful! ${contract.paymentAmount} ${currency} transferred to service provider`, 'success');
+            toast.success(`Payment successful! ${contract.paymentAmount} ${currency} transferred to service provider`);
             setPaymentTx(receipt.hash);
             const updatedContract = { ...contract, status: 'completed' as const };
             setContract(updatedContract);
@@ -1223,13 +1195,13 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         amountFormatted: '1 USDC'
       });
 
-      toast('Executing USDC transfer...'  );
+      toast.info('Executing USDC transfer...');
 
       // Execute the transfer
       const tx = await usdcContract.transfer(recipientAddress, transferAmount);
 
       console.log('✅ Transaction submitted:', tx.hash);
-      toast('USDC transfer submitted! Waiting for confirmation...');
+      toast.info('USDC transfer submitted! Waiting for confirmation...');
 
       // Wait for confirmation
       const receipt = await tx.wait();
@@ -1621,7 +1593,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
   };
 
   return (
-    <Modal
+    <ModalComponent
       isOpen={isOpen}
       onClose={handleClose}
       title="Service Contract & Payment Delegation"
@@ -1630,7 +1602,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       showNavigation={false}
     >
       {renderStepContent()}
-    </Modal>        
+    </ModalComponent>        
   );
 };
 
