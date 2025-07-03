@@ -91,9 +91,7 @@ const Navbar = () => {
 					{/* Logo */}
 					<Link href="/" className="flex items-center">
 						<Image src="/logo.png" alt="Portal Logo" width={52} height={52} />		
-						<div className="text-3xl font-bold bg-gradient-to-r px-2 text-black bg-clip-text text-transparent">
-							Portal
-						</div>
+						<div className="text-3xl font-bold bg-gradient-to-r px-2 text-black bg-clip-text text-transparent">MetaID</div>
 					</Link>
 
 					{/* Desktop Navigation - hidden on mobile */}

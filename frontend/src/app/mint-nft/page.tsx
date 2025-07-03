@@ -1,11 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { ArrowLeft, ArrowRight, BadgeCheck, Loader2, Check } from "lucide-react"
 import { useAccount } from "wagmi"
+import { useSearchParams } from "next/navigation"
+import { toast } from "sonner"
+import { parseEther } from "viem"
+import { useContractWrite, useContractRead, useWaitForTransaction } from "wagmi"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,9 +28,14 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { MetaIDabi } from "@/lib/data/MetaIDabi"
+
+// Contract address (Replace with your deployed contract address on testnet)
+const CONTRACT_ADDRESS = "0x123456789abcdef123456789abcdef123456789a"; // Replace with your actual contract address
 
 export default function MintNFT() {
   const { address, isConnected } = useAccount()
+  const searchParams = useSearchParams()
   const [isMinting, setIsMinting] = useState(false)
   const [mintProgress, setMintProgress] = useState(0)
   const [isMinted, setIsMinted] = useState(false)
@@ -37,34 +46,129 @@ export default function MintNFT() {
     walletAddress: "",
   })
 
-  // Mock NFT minting function - in production this would call the API
-  const handleMintNFT = async () => {
-    if (!isConnected) return
-    
-    setIsMinting(true)
-    setMintProgress(0)
-    
-    // Simulate minting process with progress updates
-    const interval = setInterval(() => {
-      setMintProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          
-          // Complete the minting process
-          setNftDetails({
-            tokenId: "SBT-" + Math.random().toString(36).substring(2, 10).toUpperCase(),
-            createdAt: new Date().toISOString(),
-            cardLevel: Math.random() > 0.5 ? "Premium" : "Basic",
-            walletAddress: address || "",
-          })
-          setIsMinted(true)
-          setIsMinting(false)
-          
-          return 100
-        }
-        return prev + 10
+  // Extract verification status from URL parameters
+  const metamaskCardVerified = searchParams?.get("card_verified") === "true"
+  const cardLevel = searchParams?.get("card_level") || "Basic"
+  
+  // Set default verification values for other fields
+  // In a real app, these would come from backend verification processes
+  const ensVerified = false
+  const faceVerified = false
+  const twitterVerified = false
+  const nationality = "Global" // Default value
+  const walletScore = 50 // Default score
+  const farcasterScore = 0 // Default score
+  
+  // Check if user already has a token
+  const { data: existingTokenId } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: MetaIDabi,
+    functionName: "getUserTokenId",
+    args: [address],
+    query: {
+      enabled: isConnected && !!address
+    }
+  })
+
+  // Contract mint function
+  const { writeAsync: mintNFT, data: mintData } = useContractWrite({
+    abi: MetaIDabi,
+    functionName: "mintMetaID",
+    address: CONTRACT_ADDRESS
+  })
+
+  // Wait for transaction to complete
+  const { isLoading: isWaitingForTx, isSuccess: isMintSuccessful } = useWaitForTransaction({
+    hash: mintData,
+    onSuccess: () => {
+      setMintProgress(100)
+      setIsMinted(true)
+      setIsMinting(false)
+      
+      // Get token details
+      if (address) {
+        // In production, you would fetch the actual token ID here
+        setNftDetails({
+          tokenId: `MetaID-${Date.now().toString().slice(-8)}`,
+          createdAt: new Date().toISOString(),
+          cardLevel,
+          walletAddress: address,
+        })
+      }
+      
+      toast.success("Your MetaID NFT has been successfully minted!")
+    },
+  })
+  
+  // When mounting, check if user already has a token
+  useEffect(() => {
+    if (existingTokenId && typeof existingTokenId === "bigint" && existingTokenId > BigInt(0)) {
+      toast.info("You already have a MetaID NFT")
+      
+      // Set the NFT details from the existing token
+      setIsMinted(true)
+      setNftDetails({
+        tokenId: `MetaID-${existingTokenId.toString()}`,
+        createdAt: new Date().toISOString(), // This would come from the contract in a full implementation
+        cardLevel,
+        walletAddress: address || "",
       })
-    }, 400)
+    }
+  }, [existingTokenId, address, cardLevel])
+  
+  // Progress bar animation during transaction
+  useEffect(() => {
+    if (isWaitingForTx) {
+      setIsMinting(true)
+      const interval = setInterval(() => {
+        setMintProgress((prev) => {
+          // Cap at 90% until the transaction is confirmed
+          return prev < 90 ? prev + 5 : 90
+        })
+      }, 500)
+      
+      return () => clearInterval(interval)
+    }
+  }, [isWaitingForTx])
+
+  // Handle the NFT minting process
+  const handleMintNFT = async () => {
+    if (!isConnected || !address) {
+      toast.error("Please connect your wallet first")
+      return
+    }
+    
+    // Prevent minting if user already has a token
+    if (existingTokenId && typeof existingTokenId === "bigint" && existingTokenId > BigInt(0)) {
+      toast.error("You already have a MetaID NFT")
+      return
+    }
+    
+    try {
+      setIsMinting(true)
+      setMintProgress(10)
+      
+      // Call the contract's mintMetaID function
+      await mintNFT({
+        args: [
+          metamaskCardVerified,
+          ensVerified,
+          faceVerified,
+          twitterVerified,
+          nationality,
+          BigInt(walletScore),
+          BigInt(farcasterScore)
+        ],
+      })
+      
+      // Transaction submission progress
+      // Note: Real completion is handled in the useWaitForTransaction hook
+      setMintProgress(30)
+    } catch (error) {
+      console.error("Error minting NFT:", error)
+      toast.error("Failed to mint NFT. Please try again.")
+      setIsMinting(false)
+    }
   }
 
   return (
@@ -107,83 +211,99 @@ export default function MintNFT() {
               <CardContent className="relative space-y-6">
                 <div className="rounded-lg bg-white/5 p-6 backdrop-blur-sm border border-white/10 flex flex-col items-center">
                   <div className="relative h-48 w-48 mb-4">
-                    {!isMinted ? (
-                      <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-blue-500/20 to-emerald-500/20 backdrop-blur-sm border border-white/20 flex items-center justify-center">
-                        <BadgeCheck className="h-16 w-16 text-white/30" />
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0">
-                        <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-blue-500/40 to-emerald-500/40 backdrop-blur-md border border-white/30 overflow-hidden">
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <BadgeCheck className="h-24 w-24 text-white/70" />
-                          </div>
-                          <div className="absolute bottom-0 left-0 w-full p-3 bg-gradient-to-t from-black/30 to-transparent">
-                            <p className="font-mono text-xs text-white/70 truncate">MetaID: {address?.substring(0, 10)}...</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <Image
+                      src="/images/meta-id-card.png"
+                      alt="MetaID NFT Card"
+                      fill
+                      className="object-contain"
+                      priority
+                    />
                   </div>
                   
-                  <h3 className="font-medium text-lg mb-2">Your Soulbound NFT</h3>
-                  <p className="text-sm text-center text-muted-foreground mb-6">
-                    This NFT will serve as your proof of identity and MetaMask card ownership.
-                    It cannot be transferred and is permanently bound to your wallet address.
+                  <h3 className="text-lg font-semibold mb-2">MetaID Soulbound NFT</h3>
+                  <p className="text-center text-sm text-muted-foreground mb-6">
+                    This unique NFT links your on-chain identity to your verified MetaMask card.
+                    It is non-transferable and stays bound to your wallet.
                   </p>
                   
-                  {!isMinted ? (
-                    <div className="w-full">
-                      <Button 
-                        onClick={handleMintNFT} 
-                        disabled={!isConnected || isMinting}
-                        className="w-full bg-gradient-to-r from-blue-500 to-emerald-500 hover:opacity-90 shadow-lg"
-                      >
-                        {isMinting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Minting in Progress...
-                          </>
-                        ) : (
-                          "Mint Your SBT NFT"
-                        )}
-                      </Button>
-                      
-                      {isMinting && (
-                        <div className="mt-4 space-y-2">
-                          <Progress value={mintProgress} className="h-2 bg-white/10" />
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Processing</span>
-                            <span>{mintProgress}%</span>
+                  <div className="w-full space-y-4">
+                    {!isMinted ? (
+                      <>
+                        <div className="flex flex-col space-y-2 w-full">
+                          <div className="flex justify-between text-xs">
+                            <span>Card Verification</span>
+                            <span className={metamaskCardVerified ? "text-green-400" : "text-orange-400"}>
+                              {metamaskCardVerified ? "Verified" : "Pending"}
+                            </span>
+                          </div>
+                          <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                            <div className={`h-full ${metamaskCardVerified ? "bg-green-500" : "bg-orange-500"}`} style={{ width: metamaskCardVerified ? "100%" : "0%" }}></div>
                           </div>
                         </div>
-                      )}
                       
-                      {!isConnected && (
-                        <p className="text-xs text-amber-400 mt-2 text-center">
-                          Please connect your wallet first
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <motion.div
-                      className="w-full space-y-4"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.5 }}
-                    >
-                      <div className="flex items-center justify-center gap-2 text-emerald-400">
-                        <Check className="h-5 w-5" /> 
-                        <span className="font-medium">Successfully Minted</span>
+                        {isMinting && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span>Minting Progress</span>
+                              <span>{mintProgress}%</span>
+                            </div>
+                            <Progress value={mintProgress} className="h-2" />
+                          </div>
+                        )}
+                        
+                        <Button 
+                          onClick={handleMintNFT} 
+                          disabled={!!(isMinting || !isConnected || !metamaskCardVerified || (existingTokenId && typeof existingTokenId === "bigint" && existingTokenId > BigInt(0)))} 
+                          className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 hover:opacity-90 shadow-lg"
+                        >
+                          {isMinting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Minting NFT...
+                            </>
+                          ) : existingTokenId && typeof existingTokenId === "bigint" && existingTokenId > BigInt(0) ? (
+                            "You Already Have a MetaID"
+                          ) : !metamaskCardVerified ? (
+                            "Card Verification Required"
+                          ) : !isConnected ? (
+                            "Connect Wallet to Mint"
+                          ) : (
+                            "Mint Your MetaID NFT"
+                          )}
+                        </Button>
+                      </>
+                    ) : (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex items-center justify-center space-x-2 bg-green-500/20 text-green-400 rounded-md py-3"
+                      >
+                        <Check className="h-5 w-5" />
+                        <span className="font-medium">NFT Successfully Minted!</span>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+                
+                {isMinted && (
+                  <motion.div
+                    className="space-y-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <div className="flex justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium">Your MetaID</h4>
+                        <p className="text-xs text-muted-foreground">Soul-bound to your wallet</p>
                       </div>
-                      
                       <Link href="/rewards">
                         <Button className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-90 shadow-lg">
                           View Rewards & Benefits <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                       </Link>
-                    </motion.div>
-                  )}
-                </div>
+                    </div>
+                  </motion.div>
+                )}
                 
                 {isMinted && (
                   <motion.div
@@ -213,6 +333,28 @@ export default function MintNFT() {
                           <h4 className="text-xs text-muted-foreground">Card Level</h4>
                           <p className="text-sm">{nftDetails.cardLevel}</p>
                         </div>
+
+                        <div className="space-y-2">
+                          <h4 className="text-xs text-muted-foreground">Verification Status</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex items-center space-x-2">
+                              <div className={`h-2 w-2 rounded-full ${metamaskCardVerified ? "bg-green-500" : "bg-gray-400"}`}></div>
+                              <span className="text-xs">Card Verified</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div className={`h-2 w-2 rounded-full ${ensVerified ? "bg-green-500" : "bg-gray-400"}`}></div>
+                              <span className="text-xs">ENS</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div className={`h-2 w-2 rounded-full ${faceVerified ? "bg-green-500" : "bg-gray-400"}`}></div>
+                              <span className="text-xs">Face ID</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div className={`h-2 w-2 rounded-full ${twitterVerified ? "bg-green-500" : "bg-gray-400"}`}></div>
+                              <span className="text-xs">Twitter</span>
+                            </div>
+                          </div>
+                        </div>
                       </TabsContent>
                       
                       <TabsContent value="metadata" className="mt-4">
@@ -229,6 +371,22 @@ export default function MintNFT() {
     {
       "trait_type": "Minted Date",
       "value": "${new Date(nftDetails.createdAt).toISOString().split('T')[0]}"
+    },
+    {
+      "trait_type": "MetaMask Card",
+      "value": "${metamaskCardVerified ? "Verified" : "Unverified"}"
+    },
+    {
+      "trait_type": "ENS",
+      "value": "${ensVerified ? "Verified" : "Unverified"}"
+    },
+    {
+      "trait_type": "Face ID",
+      "value": "${faceVerified ? "Verified" : "Unverified"}"
+    },
+    {
+      "trait_type": "Twitter",
+      "value": "${twitterVerified ? "Verified" : "Unverified"}"
     },
     {
       "trait_type": "Token Type",

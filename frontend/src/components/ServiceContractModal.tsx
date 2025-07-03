@@ -124,7 +124,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
       // Save to localStorage
       localStorage.setItem('mcoData', JSON.stringify(mcoData));
-      
+
       console.log(`🎉 Awarded ${pointsEarned} loyalty points for ${paymentAmount} ${currency}`);
       console.log(`📊 Total Points: ${mcoData.loyaltyPoints} | Level: ${mcoData.membershipLevel}`);
 
@@ -443,7 +443,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       } else {
         // For ETH: 18 decimals
         paymentAmountWei = parseEther(contract.paymentAmount);
-        spendingLimitWei = parseEther(contract.paymentAmount).add(parseEther('0.001')); // Add 0.001 ETH buffer
+        spendingLimitWei = parseEther(contract.paymentAmount) + parseEther('0.001'); // Add 0.001 ETH buffer 
       }
 
       // Set expiration to 30 days from now
@@ -507,7 +507,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         console.log('Delegation created (Smart Account → Smart Account)');
       } catch (delegationError) {
         console.error('Error creating delegation:', delegationError);
-        throw new Error(`Failed to create delegation: ${delegationError?.message || 'Unknown error'}`);
+        throw new Error(`Failed to create delegation: ${delegationError || 'Unknown error'}`);
       }
 
       // Sign the delegation
@@ -606,7 +606,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         }
       } catch (statusError) {
         console.error('Error updating contract status:', statusError);
-        throw new Error(`Failed to update contract status: ${statusError.message}`);
+        throw new Error(`Failed to update contract status: ${statusError}`);
       }
 
       setCurrentStep(4);
@@ -718,6 +718,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
       // Generate nonce
       const key = BigInt(Date.now());
+      // @ts-ignore
       const nonce = encodeNonce({ key, sequence: 0n });
 
       console.log('📡 Sending UserOperation to deploy service provider smart account...');
@@ -849,6 +850,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
       // Generate nonce
       const key = BigInt(Date.now());
+      // @ts-ignore
       const nonce = encodeNonce({ key, sequence: 0n });
 
       console.log('📡 Sending UserOperation to deploy smart account...');
@@ -1033,6 +1035,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
           const tx = await signer.sendTransaction({
             to: serviceProviderEOA,
             value: paymentAmount,
+            // @ts-ignore
             gasLimit: 21000n // Standard ETH transfer gas limit
           });
 
@@ -1112,14 +1115,14 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       // More specific error handling
       if (error instanceof Error) {
         if (error.message.includes('insufficient funds')) {
-          const currency = servicePrice.includes('USDC') ? 'USDC' : 'ETH';  
-          toast.error(`Insufficient funds: You need at least ${contract.paymentAmount} ${currency} + gas fees`); 
+          const currency = servicePrice.includes('USDC') ? 'USDC' : 'ETH';
+          toast.error(`Insufficient funds: You need at least ${contract.paymentAmount} ${currency} + gas fees`);
         } else if (error.message.includes('rejected')) {
           toast.error('Transaction rejected by user');
         } else if (error.message.includes('Server error')) {
-          toast.error(`Server error: ${error.message}`); 
+          toast.error(`Server error: ${error.message}`);
         } else {
-          toast.error(`Payment failed: ${error.message}`); 
+          toast.error(`Payment failed: ${error.message}`);
         }
       } else {
         toast.error('Failed to process payment - Unknown error');
@@ -1217,7 +1220,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
           amount: '1 USDC'
         });
 
-        toast.success('🎉 USDC transfer successful! 1 USDC transferred');  
+        toast.success('🎉 USDC transfer successful! 1 USDC transferred');
 
         // Award loyalty points for test transfer too (simulating service purchase)
         awardLoyaltyPoints('1', 'USDC', 'USDC Test Transfer');
@@ -1253,7 +1256,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         errorMessage += 'Unknown error';
       }
 
-      toast.error(errorMessage);   
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -1602,7 +1605,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       showNavigation={false}
     >
       {renderStepContent()}
-    </ModalComponent>        
+    </ModalComponent>
   );
 };
 

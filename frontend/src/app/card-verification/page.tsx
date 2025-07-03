@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
@@ -32,7 +32,8 @@ import { loadStripe } from "@stripe/stripe-js"
 // Initialize Stripe with publishable key
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
-export default function CardVerification() {
+// Client component that uses searchParams
+function CardVerificationContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { address, isConnected } = useAccount()
@@ -70,6 +71,56 @@ export default function CardVerification() {
       handlePaymentSuccess();
     }
   }, [searchParams]);
+
+  // Handle payment success
+  const handlePaymentSuccess = (paymentIntentId?: string) => {
+    // Generate card ID and level (in a real scenario, these would come from the backend)
+    const randomCardId = "MM-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const randomLevel = Math.random() > 0.5 ? "Premium" : "Basic";
+    
+    setCardDetails({
+      cardId: randomCardId,
+      cardLevel: randomLevel,
+      walletAddress: address || "",
+    });
+    
+    setPaymentComplete(true);
+    setIsVerified(true);
+    
+    // In a production environment, you would redirect to the NFT minting page
+    // or initiate the NFT minting process here
+    setTimeout(() => {
+      router.push("/mint-nft");
+    }, 3000);
+  };
+
+  // Handle payment error
+  const handlePaymentError = (error: string) => {
+    toast.error(`Payment failed: ${error}`);
+    setProcessingPayment(false);
+  };
+
+  // Handle smart account verification completion
+  const handleSmartAccountVerificationComplete = (result: PaymentDelegationResult) => {
+    if (result.success && result.cardId && result.cardLevel) {
+      setCardDetails({
+        cardId: result.cardId,
+        cardLevel: result.cardLevel,
+        walletAddress: address || "",
+      });
+      setIsVerified(true);
+      
+      // Redirect to NFT minting page
+      setTimeout(() => {
+        router.push("/mint-nft");
+      }, 3000);
+    }
+  };
+
+  // Handle smart account verification error
+  const handleSmartAccountVerificationError = (error: string) => {
+    console.error("Smart account verification error:", error);
+  };
 
   // Handle credit card payment
   const handleProcessPayment = async () => {
@@ -124,56 +175,6 @@ export default function CardVerification() {
     } finally {
       setProcessingPayment(false);
     }
-  };
-
-  // Handle payment success
-  const handlePaymentSuccess = (paymentIntentId?: string) => {
-    // Generate card ID and level (in a real scenario, these would come from the backend)
-    const randomCardId = "MM-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-    const randomLevel = Math.random() > 0.5 ? "Premium" : "Basic";
-    
-    setCardDetails({
-      cardId: randomCardId,
-      cardLevel: randomLevel,
-      walletAddress: address || "",
-    });
-    
-    setPaymentComplete(true);
-    setIsVerified(true);
-    
-    // In a production environment, you would redirect to the NFT minting page
-    // or initiate the NFT minting process here
-    setTimeout(() => {
-      router.push("/mint-nft");
-    }, 3000);
-  };
-
-  // Handle payment error
-  const handlePaymentError = (error: string) => {
-    toast.error(`Payment failed: ${error}`);
-    setProcessingPayment(false);
-  };
-
-  // Handle smart account verification completion
-  const handleSmartAccountVerificationComplete = (result: PaymentDelegationResult) => {
-    if (result.success && result.cardId && result.cardLevel) {
-      setCardDetails({
-        cardId: result.cardId,
-        cardLevel: result.cardLevel,
-        walletAddress: address || "",
-      });
-      setIsVerified(true);
-      
-      // Redirect to NFT minting page
-      setTimeout(() => {
-        router.push("/mint-nft");
-      }, 3000);
-    }
-  };
-
-  // Handle smart account verification error
-  const handleSmartAccountVerificationError = (error: string) => {
-    console.error("Smart account verification error:", error);
   };
 
   return (
@@ -342,5 +343,16 @@ export default function CardVerification() {
         </div>
       </div>
     </>
+  )
+}
+
+// Main page component with Suspense boundary
+export default function CardVerification() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>}>
+      <CardVerificationContent />
+    </Suspense>
   )
 }
