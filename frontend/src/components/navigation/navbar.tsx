@@ -33,8 +33,8 @@ const navLinks = [
 		icon: <RefreshCw className="mr-2 h-4 w-4" />,
 	},
 	{
-		name: "Learn More",
-		href: "/learn-more",
+		name: "How It Works",
+		href: "/how-it-works",
 		icon: <ShieldCheck className="mr-2 h-4 w-4" />,
 	},
 	{
@@ -42,11 +42,7 @@ const navLinks = [
 		href: "/coming-soon",
 		icon: <ShieldCheck className="mr-2 h-4 w-4" />,
 	},
-	{
-		name: "Terms",
-		href: "/terms",
-		icon: <ShieldCheck className="mr-2 h-4 w-4" />,
-	},
+	
 ];
 
 const Navbar = () => {
