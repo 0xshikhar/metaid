@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="https://metaid.vercel.app/logo.png" alt="MetaID Logo" width="200" height="200">
-  <h3>Bridge Trust & Privacy with Soulbound NFT Verification</h3>
+  <h3>Bridge Trust & Privacy with MetaMask Card</h3>
   <p>Deployed at: <a href="https://metaid.vercel.app/" target="_blank">https://metaid.vercel.app/</a></p>
   
   <p>
