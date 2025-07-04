@@ -20,8 +20,7 @@ import {
 import { createPimlicoClient } from 'permissionless/clients/pimlico';
 import { createBundlerClient } from 'viem/account-abstraction';
 import { encodeNonce } from 'permissionless/utils';
-import { useNotification } from '../context/NotificationContext';
-import Modal from './Modal';
+import { toast } from 'sonner';
 
 interface ServiceContractModalProps {
   isOpen: boolean;
@@ -59,7 +58,6 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentTx, setPaymentTx] = useState<string>('');
   const [countdown, setCountdown] = useState<number>(0);
-  const { showNotification } = useNotification();
 
   const mcoSmartAccountAddress = (() => {
     try {
@@ -87,7 +85,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         mcoData.loyaltyMember = true;
       }
 
-            // Update membership level and add rewards based on total points
+      // Update membership level and add rewards based on total points
       const oldLevel = mcoData.membershipLevel || 'Bronze';
       if (mcoData.loyaltyPoints >= 1000) {
         mcoData.membershipLevel = 'Gold';
@@ -170,8 +168,8 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
     checkWalletConnection();
     // Debug: Check if environment variable is loaded
     console.log('Environment check:', {
-      VITE_SEPOLIA_RPC_URL: import.meta.env.VITE_SEPOLIA_RPC_URL,
-      allEnvVars: import.meta.env
+      VITE_SEPOLIA_RPC_URL: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL,
+      allEnvVars: process.env
     });
   }, []);
 
@@ -208,7 +206,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
     }
   };
 
-    const requestServiceContract = async () => {
+  const requestServiceContract = async () => {
     setIsLoading(true);
     try {
       // Test server connectivity first
@@ -260,20 +258,20 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       if (data.success && data.contract) {
         setContract(data.contract);
         setCurrentStep(2);
-        showNotification('Service contract received from provider!', 'success');
+        toast('Service contract received from provider!', 'success');   
       } else {
         throw new Error(data.error || 'Failed to create service contract');
       }
     } catch (error) {
       console.error('Error requesting service contract:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to request service contract';
-      showNotification(errorMessage, 'error');
+      toast(errorMessage, 'error');  
     } finally {
       setIsLoading(false);
     }
   };
 
-    const signServiceAgreement = async () => {
+  const signServiceAgreement = async () => {
     if (!contract || !walletConnected) return;
 
     setIsLoading(true);
@@ -348,7 +346,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
     }
   };
 
-    const createPaymentDelegation = async () => {
+  const createPaymentDelegation = async () => {
     if (!contract || !walletConnected) {
       console.error('Prerequisites not met:', { contract: !!contract, walletConnected });
       return;
@@ -367,7 +365,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
 
       // Create MetaMask smart account
       const publicClient = createPublicClient({
-        chain: sepolia, 
+        chain: sepolia,
         transport: http(rpcUrl)
       });
       console.log('Public client created');
@@ -437,7 +435,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
           implementation: Implementation.Hybrid,
           deployParams: [account as Address, [], [], []],
           deploySalt: '0x0000000000000000000000000000000000000000000000000000000000000000',
-          signatory: { account: customAccount },
+          signatory: { account: customAccount as any },
         });
         console.log('Smart account created:', smartAccount.address);
         console.log('EOA owner:', account);
@@ -449,7 +447,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         }
       } catch (smartAccountError) {
         console.error('Error creating smart account:', smartAccountError);
-        throw new Error(`Failed to create smart account: ${smartAccountError.message}`);
+        throw new Error(`Failed to create smart account: ${smartAccountError}`);
       }
 
       // SECURE DELEGATION: Adding proper caveats for spending limits and time restrictions
@@ -517,8 +515,8 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       console.log('Delegation security features:', {
         spendingLimit: caveats.length > 0
           ? (isUSDC
-              ? `${(Number(spendingLimitWei) / 1_000_000).toFixed(6)} USDC max`
-              : `${ethers.formatEther(spendingLimitWei)} ETH max`)
+            ? `${(Number(spendingLimitWei) / 1_000_000).toFixed(6)} USDC max`
+            : `${ethers.formatEther(spendingLimitWei)} ETH max`)
           : 'None (UNSAFE)',
         timeLimit: caveats.length > 0 ? '30 days' : 'None (UNSAFE)',
         transferLimit: caveats.length > 0 ? (isUSDC ? 'USDC transfers only' : 'Native token transfers only') : 'Unlimited (UNSAFE)',
@@ -535,7 +533,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         console.log('Delegation created (Smart Account → Smart Account)');
       } catch (delegationError) {
         console.error('Error creating delegation:', delegationError);
-        throw new Error(`Failed to create delegation: ${delegationError.message}`);
+        throw new Error(`Failed to create delegation: ${delegationError?.message || 'Unknown error'}`);
       }
 
       // Sign the delegation
@@ -547,8 +545,8 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         });
         console.log('Delegation signed');
       } catch (signError) {
-        console.error('Error signing delegation:', signError);
-        throw new Error(`Failed to sign delegation: ${signError.message}`);
+        console.error('Error signing delegation:', signError as any);
+        throw new Error(`Failed to sign delegation: ${signError}`);
       }
 
       delegation = {
@@ -575,7 +573,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
           headers: {
             'Content-Type': 'application/json',
           },
-                      body: JSON.stringify({
+          body: JSON.stringify({
             contractId: contract.id,
             delegation,
             signature,
@@ -727,7 +725,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         implementation: Implementation.Hybrid,
         deployParams: [serviceProviderEOA as Address, [], [], []],
         deploySalt: '0x0000000000000000000000000000000000000000000000000000000000000001', // Different salt
-        signatory: { account: customAccount },
+        signatory: { account: customAccount as any },
       });
 
       console.log('Service Provider Smart Account computed address:', serviceProviderSmartAccount.address);
@@ -852,7 +850,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         implementation: Implementation.Hybrid,
         deployParams: [userAddress as Address, [], [], []],
         deploySalt: '0x0000000000000000000000000000000000000000000000000000000000000000',
-        signatory: { account: customAccount },
+        signatory: { account: customAccount as any },
       });
 
       console.log('Smart account computed address:', smartAccount.address);
@@ -975,158 +973,158 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
           }),
         });
 
-          if (delegationResponse.ok) {
-            const serverResult = await delegationResponse.json();
-            console.log('✅ SERVER-SIDE DELEGATION EXECUTED:', serverResult);
+        if (delegationResponse.ok) {
+          const serverResult = await delegationResponse.json();
+          console.log('✅ SERVER-SIDE DELEGATION EXECUTED:', serverResult);
 
-            if (serverResult.success && serverResult.transactionHash) {
-              const currency = servicePrice.includes('USDC') ? 'USDC' : 'ETH';
-              showNotification(`Delegation executed! ${contract.paymentAmount} ${currency} transferred from Smart Account`, 'success');
-              setPaymentTx(serverResult.transactionHash);
-              const updatedContract = { ...contract, status: 'completed' as const };
-              setContract(updatedContract);
+          if (serverResult.success && serverResult.transactionHash) {
+            const currency = servicePrice.includes('USDC') ? 'USDC' : 'ETH';
+            showNotification(`Delegation executed! ${contract.paymentAmount} ${currency} transferred from Smart Account`, 'success');
+            setPaymentTx(serverResult.transactionHash);
+            const updatedContract = { ...contract, status: 'completed' as const };
+            setContract(updatedContract);
 
-              // Award loyalty points for USDC payments
-              awardLoyaltyPoints(contract.paymentAmount, currency, serviceName);
+            // Award loyalty points for USDC payments
+            awardLoyaltyPoints(contract.paymentAmount, currency, serviceName);
 
-              // Update contract in localStorage with payment completion
-              const completedContract = {
-                ...updatedContract,
-                paymentTx: serverResult.transactionHash,
-                completedAt: new Date().toISOString(),
-                paymentMethod: 'delegation_' + currency.toLowerCase(),
-                selectedServices: selectedServices,
-                serviceName: serviceName,
-                servicePrice: servicePrice
-              };
+            // Update contract in localStorage with payment completion
+            const completedContract = {
+              ...updatedContract,
+              paymentTx: serverResult.transactionHash,
+              completedAt: new Date().toISOString(),
+              paymentMethod: 'delegation_' + currency.toLowerCase(),
+              selectedServices: selectedServices,
+              serviceName: serviceName,
+              servicePrice: servicePrice
+            };
 
-              // Get existing MCO data and contracts
-              const mcoData = JSON.parse(localStorage.getItem('mcoData') || '{}');
-              const existingContracts = mcoData.signedContracts || [];
+            // Get existing MCO data and contracts
+            const mcoData = JSON.parse(localStorage.getItem('mcoData') || '{}');
+            const existingContracts = mcoData.signedContracts || [];
 
-              // Update the contract
-              const contractIndex = existingContracts.findIndex((c: any) => c.id === completedContract.id);
-              if (contractIndex >= 0) {
-                existingContracts[contractIndex] = completedContract;
-                mcoData.signedContracts = existingContracts;
-                localStorage.setItem('mcoData', JSON.stringify(mcoData));
-                console.log('💾 Contract updated with payment completion:', completedContract);
-              }
-
-              return;
+            // Update the contract
+            const contractIndex = existingContracts.findIndex((c: any) => c.id === completedContract.id);
+            if (contractIndex >= 0) {
+              existingContracts[contractIndex] = completedContract;
+              mcoData.signedContracts = existingContracts;
+              localStorage.setItem('mcoData', JSON.stringify(mcoData));
+              console.log('💾 Contract updated with payment completion:', completedContract);
             }
+
+            return;
+          }
+        }
+
+        console.log('❌ Server-side delegation failed, will try client-side approach');
+        throw new Error('Server-side delegation failed - trying client-side');
+
+      } catch (serverError) {
+        console.log('🔄 Falling back to client-side delegation redemption...');
+        showNotification('Server-side failed, trying client-side delegation...', 'info');
+
+        // REAL CLIENT-SIDE DELEGATION REDEMPTION
+        console.log('🎯 REAL CLIENT-SIDE DELEGATION REDEMPTION');
+        console.log('This fixes the 0x155ff427 signature verification issue');
+
+        // Check if we're dealing with USDC or ETH
+        const isUSDCPayment = servicePrice.includes('USDC');
+
+        if (isUSDCPayment) {
+          console.log('❌ USDC delegation failed on server-side');
+          console.log('USDC payments require delegation framework - no fallback available');
+          console.log('Client-side USDC transfers require ERC-20 contract interaction via delegation');
+          throw new Error('USDC delegation execution failed on server. USDC payments require successful delegation framework execution.');
+        }
+
+        try {
+          // Create a simple ETH transfer using the User Smart Account
+          // This bypasses the delegation signature verification issue
+          console.log('💡 ALTERNATIVE APPROACH: Direct ETH transfer to Service Provider EOA');
+          console.log('Instead of complex delegation redemption, use simple EOA transfer');
+
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+
+          // Calculate payment amount (only for ETH)
+          const paymentAmount = ethers.parseEther(contract.paymentAmount);
+          // FIXED: Send to Service Provider EOA instead of Smart Account
+          const serviceProviderEOA = '0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3';
+
+          console.log('🔧 Transfer details:');
+          console.log('- From: User EOA (connected wallet)');
+          console.log('- To: Service Provider EOA', serviceProviderEOA);
+          console.log('- Amount:', contract.paymentAmount, 'ETH');
+
+          toast.info('Executing direct transfer to service provider...');
+
+          // Execute direct transfer from User EOA to Service Provider EOA
+          const tx = await signer.sendTransaction({
+            to: serviceProviderEOA,
+            value: paymentAmount,
+            gasLimit: 21000n // Standard ETH transfer gas limit
+          });
+
+          console.log('✅ Transaction submitted:', tx.hash);
+          toast.info('Waiting for transaction confirmation...');
+
+          // Wait for transaction confirmation
+          const receipt = await tx.wait();
+
+          if (receipt && receipt.status === 1) {
+            console.log('🎉 CLIENT-SIDE TRANSFER SUCCESSFUL!');
+            console.log('Transaction receipt:', receipt);
+
+            const currency = 'ETH';
+            showNotification(`Payment successful! ${contract.paymentAmount} ${currency} transferred to service provider`, 'success');
+            setPaymentTx(receipt.hash);
+            const updatedContract = { ...contract, status: 'completed' as const };
+            setContract(updatedContract);
+
+            // Award loyalty points (ETH payments currently don't earn points, only USDC)
+            awardLoyaltyPoints(contract.paymentAmount, currency, serviceName);
+
+            // Update contract in localStorage with payment completion
+            const completedContract = {
+              ...updatedContract,
+              paymentTx: receipt.hash,
+              completedAt: new Date().toISOString(),
+              paymentMethod: 'direct_eth_transfer',
+              selectedServices: selectedServices,
+              serviceName: serviceName,
+              servicePrice: servicePrice
+            };
+
+            // Get existing MCO data and contracts
+            const mcoData = JSON.parse(localStorage.getItem('mcoData') || '{}');
+            const existingContracts = mcoData.signedContracts || [];
+
+            // Update the contract
+            const contractIndex = existingContracts.findIndex((c: any) => c.id === completedContract.id);
+            if (contractIndex >= 0) {
+              existingContracts[contractIndex] = completedContract;
+              mcoData.signedContracts = existingContracts;
+              localStorage.setItem('mcoData', JSON.stringify(mcoData));
+              console.log('💾 Contract updated with payment completion:', completedContract);
+            }
+
+            return;
+          } else {
+            throw new Error('Transaction failed or was reverted');
           }
 
-          console.log('❌ Server-side delegation failed, will try client-side approach');
-          throw new Error('Server-side delegation failed - trying client-side');
+        } catch (clientError) {
+          console.error('❌ Client-side execution also failed:', clientError);
 
-                 } catch (serverError) {
-           console.log('🔄 Falling back to client-side delegation redemption...');
-           showNotification('Server-side failed, trying client-side delegation...', 'info');
+          // If both server-side and client-side fail, show the core issue
+          console.log('📋 DELEGATION FRAMEWORK ANALYSIS:');
+          console.log('- Server-side delegation: Failed with 0x155ff427 (signature verification)');
+          console.log('- Client-side direct transfer: Failed with:', clientError);
+          console.log('- Root cause: EIP-712 domain parameter mismatch in delegation signing');
+          console.log('- Solution: Need MetaMask SDK to handle delegation domain parameters correctly');
 
-           // REAL CLIENT-SIDE DELEGATION REDEMPTION
-           console.log('🎯 REAL CLIENT-SIDE DELEGATION REDEMPTION');
-           console.log('This fixes the 0x155ff427 signature verification issue');
-
-                      // Check if we're dealing with USDC or ETH
-           const isUSDCPayment = servicePrice.includes('USDC');
-
-           if (isUSDCPayment) {
-             console.log('❌ USDC delegation failed on server-side');
-             console.log('USDC payments require delegation framework - no fallback available');
-             console.log('Client-side USDC transfers require ERC-20 contract interaction via delegation');
-             throw new Error('USDC delegation execution failed on server. USDC payments require successful delegation framework execution.');
-           }
-
-           try {
-             // Create a simple ETH transfer using the User Smart Account
-             // This bypasses the delegation signature verification issue
-             console.log('💡 ALTERNATIVE APPROACH: Direct ETH transfer to Service Provider EOA');
-             console.log('Instead of complex delegation redemption, use simple EOA transfer');
-
-             const provider = new ethers.BrowserProvider(window.ethereum);
-             const signer = await provider.getSigner();
-
-             // Calculate payment amount (only for ETH)
-             const paymentAmount = ethers.parseEther(contract.paymentAmount);
-             // FIXED: Send to Service Provider EOA instead of Smart Account
-             const serviceProviderEOA = '0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3';
-
-             console.log('🔧 Transfer details:');
-             console.log('- From: User EOA (connected wallet)');
-             console.log('- To: Service Provider EOA', serviceProviderEOA);
-             console.log('- Amount:', contract.paymentAmount, 'ETH');
-
-             showNotification('Executing direct transfer to service provider...', 'info');
-
-             // Execute direct transfer from User EOA to Service Provider EOA
-             const tx = await signer.sendTransaction({
-               to: serviceProviderEOA,
-               value: paymentAmount,
-               gasLimit: 21000n // Standard ETH transfer gas limit
-             });
-
-             console.log('✅ Transaction submitted:', tx.hash);
-             showNotification('Waiting for transaction confirmation...', 'info');
-
-             // Wait for transaction confirmation
-             const receipt = await tx.wait();
-
-             if (receipt && receipt.status === 1) {
-               console.log('🎉 CLIENT-SIDE TRANSFER SUCCESSFUL!');
-               console.log('Transaction receipt:', receipt);
-
-               const currency = 'ETH';
-               showNotification(`Payment successful! ${contract.paymentAmount} ${currency} transferred to service provider`, 'success');
-               setPaymentTx(receipt.hash);
-               const updatedContract = { ...contract, status: 'completed' as const };
-               setContract(updatedContract);
-
-               // Award loyalty points (ETH payments currently don't earn points, only USDC)
-               awardLoyaltyPoints(contract.paymentAmount, currency, serviceName);
-
-               // Update contract in localStorage with payment completion
-               const completedContract = {
-                 ...updatedContract,
-                 paymentTx: receipt.hash,
-                 completedAt: new Date().toISOString(),
-                 paymentMethod: 'direct_eth_transfer',
-                 selectedServices: selectedServices,
-                 serviceName: serviceName,
-                 servicePrice: servicePrice
-               };
-
-               // Get existing MCO data and contracts
-               const mcoData = JSON.parse(localStorage.getItem('mcoData') || '{}');
-               const existingContracts = mcoData.signedContracts || [];
-
-               // Update the contract
-               const contractIndex = existingContracts.findIndex((c: any) => c.id === completedContract.id);
-               if (contractIndex >= 0) {
-                 existingContracts[contractIndex] = completedContract;
-                 mcoData.signedContracts = existingContracts;
-                 localStorage.setItem('mcoData', JSON.stringify(mcoData));
-                 console.log('💾 Contract updated with payment completion:', completedContract);
-               }
-
-               return;
-             } else {
-               throw new Error('Transaction failed or was reverted');
-             }
-
-           } catch (clientError) {
-             console.error('❌ Client-side execution also failed:', clientError);
-
-             // If both server-side and client-side fail, show the core issue
-             console.log('📋 DELEGATION FRAMEWORK ANALYSIS:');
-             console.log('- Server-side delegation: Failed with 0x155ff427 (signature verification)');
-             console.log('- Client-side direct transfer: Failed with:', clientError);
-             console.log('- Root cause: EIP-712 domain parameter mismatch in delegation signing');
-             console.log('- Solution: Need MetaMask SDK to handle delegation domain parameters correctly');
-
-             throw new Error(`Both delegation and direct transfer failed. Delegation signature verification needs to be fixed. Error: ${clientError instanceof Error ? clientError.message : 'Unknown error'}`);
-           }
-         }
+          throw new Error(`Both delegation and direct transfer failed. Delegation signature verification needs to be fixed. Error: ${clientError instanceof Error ? clientError.message : 'Unknown error'}`);
+        }
+      }
 
       // NO FALLBACK: If delegation fails, show error - don't charge EOA
       console.log('❌ DELEGATION FAILED - NO FALLBACK PAYMENT');
@@ -1142,17 +1140,17 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       // More specific error handling
       if (error instanceof Error) {
         if (error.message.includes('insufficient funds')) {
-          const currency = servicePrice.includes('USDC') ? 'USDC' : 'ETH';
-          showNotification(`Insufficient funds: You need at least ${contract.paymentAmount} ${currency} + gas fees`, 'error');
+          const currency = servicePrice.includes('USDC') ? 'USDC' : 'ETH';  
+          toast.error(`Insufficient funds: You need at least ${contract.paymentAmount} ${currency} + gas fees`); 
         } else if (error.message.includes('rejected')) {
-          showNotification('Transaction rejected by user', 'error');
+          toast.error('Transaction rejected by user');
         } else if (error.message.includes('Server error')) {
-          showNotification(`Server error: ${error.message}`, 'error');
+          toast.error(`Server error: ${error.message}`); 
         } else {
-          showNotification(`Payment failed: ${error.message}`, 'error');
+          toast.error(`Payment failed: ${error.message}`); 
         }
       } else {
-        showNotification('Failed to process payment - Unknown error', 'error');
+        toast.error('Failed to process payment - Unknown error');
       }
     } finally {
       setPaymentProcessing(false);
@@ -1162,12 +1160,12 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
   // Test function for direct USDC transfer (EOA to EOA)
   const testUSDCTransfer = async () => {
     if (!walletConnected || !userAddress) {
-      showNotification('Please connect your wallet first', 'error');
+      toast.error('Please connect your wallet first');
       return;
     }
 
     setIsLoading(true);
-    showNotification('Testing USDC transfer...', 'info');
+    toast.info('Testing USDC transfer...');
 
     try {
       console.log('🧪 TESTING DIRECT USDC TRANSFER (EOA to EOA)');
@@ -1206,14 +1204,16 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         userBalanceFormatted: ethers.formatUnits(balance, decimals) + ' USDC'
       });
 
-              // Check if user has enough USDC
-        if (balance < 1000000n) {
-        showNotification(`Insufficient USDC balance. You have ${ethers.formatUnits(balance, decimals)} USDC, need at least 1 USDC`, 'error');
+      // Check if user has enough USDC 
+      // @ts-ignore
+      if (balance < 1000000n) {
+        toast.error(`Insufficient USDC balance. You have ${ethers.formatUnits(balance, decimals)} USDC, need at least 1 USDC`);
         return;
       }
 
       // Transfer details
       const recipientAddress = '0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3'; // Service Provider EOA
+      // @ts-ignore
       const transferAmount = 1000000n; // 1 USDC (1,000,000 wei of USDC since USDC has 6 decimals)
 
       console.log('Transfer Details:', {
@@ -1223,13 +1223,13 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         amountFormatted: '1 USDC'
       });
 
-      showNotification('Executing USDC transfer...', 'info');
+      toast('Executing USDC transfer...'  );
 
       // Execute the transfer
       const tx = await usdcContract.transfer(recipientAddress, transferAmount);
 
       console.log('✅ Transaction submitted:', tx.hash);
-      showNotification('USDC transfer submitted! Waiting for confirmation...', 'info');
+      toast('USDC transfer submitted! Waiting for confirmation...');
 
       // Wait for confirmation
       const receipt = await tx.wait();
@@ -1245,7 +1245,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
           amount: '1 USDC'
         });
 
-        showNotification('🎉 USDC transfer successful! 1 USDC transferred', 'success');
+        toast.success('🎉 USDC transfer successful! 1 USDC transferred');  
 
         // Award loyalty points for test transfer too (simulating service purchase)
         awardLoyaltyPoints('1', 'USDC', 'USDC Test Transfer');
@@ -1281,7 +1281,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
         errorMessage += 'Unknown error';
       }
 
-      showNotification(errorMessage, 'error');
+      toast.error(errorMessage);   
     } finally {
       setIsLoading(false);
     }
@@ -1357,7 +1357,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
                   <div style={{ marginBottom: '15px', padding: '10px', background: 'linear-gradient(135deg, #e3f2fd 0%, #f0f8ff 100%)', borderRadius: '6px', border: '1px solid #2196f3' }}>
                     <h5 style={{ margin: '0 0 5px 0', color: '#1976d2' }}>👤 Your Smart Account</h5>
                     <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#666' }}>
-                      Your EOA: <code>{userAddress}</code><br/>
+                      Your EOA: <code>{userAddress}</code><br />
                       Expected Smart Account: <code>{mcoSmartAccountAddress}</code>
                     </p>
                     <button
@@ -1374,7 +1374,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
                   <div style={{ marginBottom: '10px', padding: '10px', background: 'linear-gradient(135deg, #f3e5f5 0%, #fce4ec 100%)', borderRadius: '6px', border: '1px solid #9c27b0' }}>
                     <h5 style={{ margin: '0 0 5px 0', color: '#7b1fa2' }}>🏢 Service Provider Smart Account</h5>
                     <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#666' }}>
-                      Provider EOA: <code>0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3</code><br/>
+                      Provider EOA: <code>0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3</code><br />
                       Smart Account: <code>0xc6Ff874f8D4b590478cC10Fae4D33E968546dCF9</code>
                     </p>
                     <button
@@ -1399,9 +1399,9 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
                     Test a direct EOA to EOA USDC transfer of 1 USDC before using delegation
                   </p>
                   <div style={{ fontSize: '12px', color: '#888', marginBottom: '10px' }}>
-                    <strong>From:</strong> {userAddress}<br/>
-                    <strong>To:</strong> 0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3 (Service Provider EOA)<br/>
-                    <strong>Amount:</strong> 1 USDC (1,000,000 wei of USDC)<br/>
+                    <strong>From:</strong> {userAddress}<br />
+                    <strong>To:</strong> 0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3 (Service Provider EOA)<br />
+                    <strong>Amount:</strong> 1 USDC (1,000,000 wei of USDC)<br />
                     <strong>Contract:</strong> 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
                   </div>
                   <button
@@ -1441,9 +1441,9 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
                 <div className="contract-parties" style={{ marginBottom: '20px', padding: '15px', background: 'linear-gradient(135deg, #fff3e0 0%, #f3e5f5 50%, #e8f5e8 100%)', borderRadius: '8px', border: '1px solid #ffcc02' }}>
                   <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📋 Contract Parties</h4>
                   <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#666' }}>
-                    Service Provider EOA: <code>0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3</code><br/>
-                    Service Provider Smart Account: <code>0xc6Ff874f8D4b590478cC10Fae4D33E968546dCF9</code><br/>
-                    Customer EOA: <code>{userAddress}</code><br/>
+                    Service Provider EOA: <code>0x977bc18693ba4F4bfF8051d27e722b930F3f3Fe3</code><br />
+                    Service Provider Smart Account: <code>0xc6Ff874f8D4b590478cC10Fae4D33E968546dCF9</code><br />
+                    Customer EOA: <code>{userAddress}</code><br />
                     Customer Smart Account: <code>{mcoSmartAccountAddress}</code>
                   </p>
                 </div>
@@ -1456,7 +1456,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
                 </div>
 
                 <div className="contract-actions">
-                  <p>By clicking "Sign Agreement", you agree to the terms above and authorize the service provider to collect payment upon service completion.</p>
+                  <p>By clicking &quot;Sign Agreement&quot;, you agree to the terms above and authorize the service provider to collect payment upon service completion.</p>
                   <button
                     className="service-button"
                     onClick={signServiceAgreement}
@@ -1478,7 +1478,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
               <div className="delegation-setup">
                 <div className="delegation-info">
                   <h4>MetaMask Delegation Setup</h4>
-                  <p>Now we'll create a secure payment delegation that allows the service provider to collect payment only after completing the agreed services.</p>
+                  <p>Now we&apos;ll create a secure payment delegation that allows the service provider to collect payment only after completing the agreed services.</p>
 
                   <div className="delegation-details">
                     <div className="detail-item">
@@ -1486,12 +1486,12 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
                     </div>
                     <div className="detail-item">
                       <strong>Sender (Your Smart Account):</strong>
-                      <br/>
+                      <br />
                       <code style={{ fontSize: '12px' }}>{mcoSmartAccountAddress}</code>
                     </div>
                     <div className="detail-item">
                       <strong>Recipient (Service Provider Smart Account):</strong>
-                      <br/>
+                      <br />
                       <code style={{ fontSize: '12px' }}>0xc6Ff874f8D4b590478cC10Fae4D33E968546dCF9</code>
                     </div>
                     <div className="detail-item">
@@ -1560,7 +1560,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
               {!paymentTx && !paymentProcessing && (
                 <div className="payment-section" style={{ textAlign: 'center' }}>
                   <h5>Ready for Payment Processing</h5>
-                  <p>Click "Complete Service" to simulate the service provider collecting payment using your delegation.</p>
+                  <p>Click &quot;Complete Service & Process Payment&quot; to simulate the service provider collecting payment using your delegation.</p>
                   <div style={{ display: 'flex', justifyContent: 'center', marginTop: '15px' }}>
                     <button
                       className="service-button"
@@ -1603,10 +1603,10 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
               {!paymentTx && !paymentProcessing && (
                 <div className="next-steps">
                   <h5>What happens next:</h5>
-                  <ol>
+                  <ol >
                     <li>The service provider will contact you to schedule the service</li>
                     <li>Service will be completed as agreed</li>
-                    <li>Click "Complete Service" above to simulate payment collection</li>
+                    <li>Click &quot;Complete Service & Process Payment&quot; above to simulate payment collection</li>
                     <li>Payment will be automatically processed via the delegation</li>
                   </ol>
                 </div>
@@ -1630,7 +1630,7 @@ const ServiceContractModal: React.FC<ServiceContractModalProps> = ({
       showNavigation={false}
     >
       {renderStepContent()}
-    </Modal>
+    </Modal>        
   );
 };
 

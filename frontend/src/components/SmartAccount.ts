@@ -120,7 +120,7 @@ export async function deploySmartAccount(options: SmartAccountOptions = {}): Pro
             implementation: Implementation.Hybrid,
             deployParams: [userEOA, [], [], []], // Using user's EOA
             deploySalt: '0x0000000000000000000000000000000000000000000000000000000000000000',
-            signatory: { account: userAccount },
+            signatory: { account: userAccount as any },
         });
 
         console.log('✅ Smart account instance created!');

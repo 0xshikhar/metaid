@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowRight, ArrowLeft, CreditCard, Check, Loader2, AlertCircle, Wallet } from "lucide-react"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { useAccount } from "wagmi"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,13 +24,23 @@ import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PaymentDelegation, PaymentDelegationResult } from "@/components/PaymentDelegation"
+import { StripeProvider } from "@/components/StripeProvider"
+import { StripePaymentForm } from "@/components/StripePaymentForm"
+import { Elements } from "@stripe/react-stripe-js"
+import { loadStripe } from "@stripe/stripe-js"
+
+// Initialize Stripe with publishable key
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
 export default function CardVerification() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { address, isConnected } = useAccount()
   const [isLoading, setIsLoading] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [paymentComplete, setPaymentComplete] = useState(false)
+  const [clientSecret, setClientSecret] = useState<string>("")
   const [cardDetails, setCardDetails] = useState({
     cardId: "",
     cardLevel: "",
@@ -51,6 +63,14 @@ export default function CardVerification() {
     cvv: "",
   })
 
+  // Check if payment was completed from URL params
+  useEffect(() => {
+    const paymentComplete = searchParams.get("payment_complete") === "true";
+    if (paymentComplete) {
+      handlePaymentSuccess();
+    }
+  }, [searchParams]);
+
   // Handle credit card payment
   const handleProcessPayment = async () => {
     // Basic validation
@@ -62,32 +82,8 @@ export default function CardVerification() {
     };
     let hasError = false;
     
-    if (!paymentDetails.cardNumber.trim()) {
-      newErrors.cardNumber = "Card number is required";
-      hasError = true;
-    } else if (!/^\d{16}$/.test(paymentDetails.cardNumber.replace(/\s/g, ''))) {
-      newErrors.cardNumber = "Enter a valid 16-digit card number";
-      hasError = true;
-    }
-    
-    if (!paymentDetails.cardholderName.trim()) {
-      newErrors.cardholderName = "Cardholder name is required";
-      hasError = true;
-    }
-    
-    if (!paymentDetails.expiryDate.trim()) {
-      newErrors.expiryDate = "Expiry date is required";
-      hasError = true;
-    } else if (!/^\d{2}\/\d{2}$/.test(paymentDetails.expiryDate)) {
-      newErrors.expiryDate = "Use format MM/YY";
-      hasError = true;
-    }
-    
-    if (!paymentDetails.cvv.trim()) {
-      newErrors.cvv = "CVV is required";
-      hasError = true;
-    } else if (!/^\d{3,4}$/.test(paymentDetails.cvv)) {
-      newErrors.cvv = "Enter a valid CVV";
+    if (!address) {
+      toast.error("Please connect your wallet first");
       hasError = true;
     }
     
@@ -97,30 +93,65 @@ export default function CardVerification() {
       return;
     }
     
-    // Process payment
+    // Process payment through Stripe
     setProcessingPayment(true);
     
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Generate random card ID and level for the demo
-      const randomCardId = "MM-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      const randomLevel = Math.random() > 0.5 ? "Premium" : "Basic";
-      
-      setCardDetails({
-        cardId: randomCardId,
-        cardLevel: randomLevel,
-        walletAddress: address || "",
+      // Create a payment intent through our API
+      const response = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: address,
+          cardType: "Standard" // Can be changed based on selection if needed
+        }),
       });
       
-      setPaymentComplete(true);
-      setIsVerified(true);
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Set the client secret for Stripe Elements
+      setClientSecret(data.clientSecret);
+      
     } catch (error) {
       console.error("Payment failed:", error);
+      toast.error("Payment setup failed. Please try again.");
     } finally {
       setProcessingPayment(false);
     }
+  };
+
+  // Handle payment success
+  const handlePaymentSuccess = (paymentIntentId?: string) => {
+    // Generate card ID and level (in a real scenario, these would come from the backend)
+    const randomCardId = "MM-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const randomLevel = Math.random() > 0.5 ? "Premium" : "Basic";
+    
+    setCardDetails({
+      cardId: randomCardId,
+      cardLevel: randomLevel,
+      walletAddress: address || "",
+    });
+    
+    setPaymentComplete(true);
+    setIsVerified(true);
+    
+    // In a production environment, you would redirect to the NFT minting page
+    // or initiate the NFT minting process here
+    setTimeout(() => {
+      router.push("/mint-nft");
+    }, 3000);
+  };
+
+  // Handle payment error
+  const handlePaymentError = (error: string) => {
+    toast.error(`Payment failed: ${error}`);
+    setProcessingPayment(false);
   };
 
   // Handle smart account verification completion
@@ -132,12 +163,17 @@ export default function CardVerification() {
         walletAddress: address || "",
       });
       setIsVerified(true);
+      
+      // Redirect to NFT minting page
+      setTimeout(() => {
+        router.push("/mint-nft");
+      }, 3000);
     }
   };
 
   // Handle smart account verification error
   const handleSmartAccountVerificationError = (error: string) => {
-    console.error("Smart account verification failed:", error);
+    console.error("Smart account verification error:", error);
   };
 
   return (
@@ -198,84 +234,45 @@ export default function CardVerification() {
                         </TabsTrigger>
                       </TabsList>
                       
-                      <TabsContent value="card" className="space-y-4">
-                        <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-600">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertDescription>
-                            A dummy payment of 1 USDC will be charged for verification purposes.
-                          </AlertDescription>
-                        </Alert>
-                      
-                        <div className="grid gap-4">
-                          <div className="grid gap-2">
-                            <Label htmlFor="cardNumber">Card Number</Label>
-                            <Input
-                              id="cardNumber"
-                              placeholder="1234 5678 9012 3456"
-                              value={paymentDetails.cardNumber}
-                              onChange={(e) => setPaymentDetails({...paymentDetails, cardNumber: e.target.value})}
-                              className={errors.cardNumber ? "border-red-500" : ""}
-                            />
-                            {errors.cardNumber && <p className="text-xs text-red-500">{errors.cardNumber}</p>}
-                          </div>
-                          
-                          <div className="grid gap-2">
-                            <Label htmlFor="cardholderName">Cardholder Name</Label>
-                            <Input
-                              id="cardholderName"
-                              placeholder="John Doe"
-                              value={paymentDetails.cardholderName}
-                              onChange={(e) => setPaymentDetails({...paymentDetails, cardholderName: e.target.value})}
-                              className={errors.cardholderName ? "border-red-500" : ""}
-                            />
-                            {errors.cardholderName && <p className="text-xs text-red-500">{errors.cardholderName}</p>}
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                              <Label htmlFor="expiryDate">Expiry Date</Label>
-                              <Input
-                                id="expiryDate"
-                                placeholder="MM/YY"
-                                value={paymentDetails.expiryDate}
-                                onChange={(e) => setPaymentDetails({...paymentDetails, expiryDate: e.target.value})}
-                                className={errors.expiryDate ? "border-red-500" : ""}
-                              />
-                              {errors.expiryDate && <p className="text-xs text-red-500">{errors.expiryDate}</p>}
-                            </div>
-                            
-                            <div className="grid gap-2">
-                              <Label htmlFor="cvv">CVV</Label>
-                              <Input
-                                id="cvv"
-                                placeholder="123"
-                                type="password"
-                                value={paymentDetails.cvv}
-                                onChange={(e) => setPaymentDetails({...paymentDetails, cvv: e.target.value})}
-                                className={errors.cvv ? "border-red-500" : ""}
-                              />
-                              {errors.cvv && <p className="text-xs text-red-500">{errors.cvv}</p>}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <Button 
-                          className="w-full" 
-                          onClick={handleProcessPayment} 
-                          disabled={processingPayment}
-                        >
-                          {processingPayment ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Processing Payment...
-                            </>
+                      <TabsContent value="card">
+                        <div className="space-y-4">
+                          <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-600">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              A dummy payment of 1 USDC will be charged for verification purposes.
+                            </AlertDescription>
+                          </Alert>
+
+                          {!clientSecret ? (
+                            <Button 
+                              className="w-full mt-4" 
+                              onClick={handleProcessPayment} 
+                              disabled={processingPayment}
+                            >
+                              {processingPayment ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Processing Payment...
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowRight className="mr-2 h-4 w-4" />
+                                  Proceed to Payment
+                                </>
+                              )}
+                            </Button>
                           ) : (
-                            <>
-                              <ArrowRight className="mr-2 h-4 w-4" />
-                              Process Payment and Verify
-                            </>
+                            <div className="mt-4">
+                              <Elements stripe={stripePromise} options={{ clientSecret }}>
+                                <StripePaymentForm 
+                                  clientSecret={clientSecret}
+                                  onSuccess={handlePaymentSuccess}
+                                  onError={handlePaymentError}
+                                />
+                              </Elements>
+                            </div>
                           )}
-                        </Button>
+                        </div>
                       </TabsContent>
                       
                       <TabsContent value="smartAccount">
