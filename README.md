@@ -22,6 +22,11 @@ MetaID introduces a decentralized identity layer that bridges the gap between tr
 <div align="center">
   <!-- Demo Video: <a href="https://metaid.vercel.app/demo.mp4" target="_blank">https://metaid.vercel.app/demo.mp4</a> -->
   🌎 Demo Link - <a href="https://metaid.vercel.app/" target="_blank">https://metaid.vercel.app/</a>
+
+  ### MetaID NFT Contracts
+  <a href="https://sepolia.etherscan.io/address/0xa19aadb3b2a2310e8edb9f38afe95626a3003d04" target="_blank">Sepolia Contract</a>
+
+  <a href="https://sepolia.lineascan.build/tx/0xbd012c44a0cf2e1aeabd4babf963ebacd0a6da9314b7c8215ef3e4475a2544e1" target="_blank">Linea Sepolia Contract</a> - pending from last 3 hours - test chains is badly down, not able to transfer tokens between wallets
 </div>
 
 ## ✨ Features
