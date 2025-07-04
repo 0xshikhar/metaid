@@ -15,14 +15,15 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import {
   mainnet,
   linea,
-  lineaSepolia
+  lineaSepolia,
+  sepolia
 } from 'wagmi/chains';
 
 // WalletConnect v2 Project ID - Replace with your own in a production app
 const projectId = '9811958bd307518b364ff7178034c435';
 
 // Configure supported chains for MetaID
-const metaIdChains = [lineaSepolia, mainnet, linea] as const;
+const metaIdChains = [lineaSepolia, mainnet, linea, sepolia] as const;
 
 // Configure RainbowKit and wagmi
 const config = getDefaultConfig({

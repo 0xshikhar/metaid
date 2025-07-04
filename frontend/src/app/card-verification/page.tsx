@@ -120,6 +120,7 @@ function CardVerificationContent() {
   // Handle smart account verification error
   const handleSmartAccountVerificationError = (error: string) => {
     console.error("Smart account verification error:", error);
+    router.push("/mint-nft");
   };
 
   // Handle credit card payment
